@@ -1,0 +1,104 @@
+Elm.Main = Elm.Main || {};
+Elm.Main.make = function (_elm) {
+   "use strict";
+   _elm.Main = _elm.Main || {};
+   if (_elm.Main.values)
+   return _elm.Main.values;
+   var _op = {},
+   _N = Elm.Native,
+   _U = _N.Utils.make(_elm),
+   _L = _N.List.make(_elm),
+   $moduleName = "Main",
+   $Basics = Elm.Basics.make(_elm),
+   $Color = Elm.Color.make(_elm),
+   $Dict = Elm.Dict.make(_elm),
+   $Graphics$Collage = Elm.Graphics.Collage.make(_elm),
+   $Graphics$Element = Elm.Graphics.Element.make(_elm),
+   $List = Elm.List.make(_elm),
+   $Maybe = Elm.Maybe.make(_elm),
+   $Mouse = Elm.Mouse.make(_elm),
+   $Result = Elm.Result.make(_elm),
+   $Signal = Elm.Signal.make(_elm);
+   var creatureForm = $Graphics$Collage.filled($Color.red)($Graphics$Collage.circle(40));
+   var render = function (state) {
+      return A4($Graphics$Element.container,
+      800,
+      800,
+      $Graphics$Element.middle,
+      A3($Graphics$Collage.collage,
+      800,
+      800,
+      _L.fromArray([A2($Graphics$Collage.move,
+      $Maybe.withDefault({ctor: "_Tuple2"
+                         ,_0: 0
+                         ,_1: 0})(A2($Dict.get,
+      "creature",
+      state)),
+      creatureForm)])));
+   };
+   var creaturePos = F2(function (action,
+   state) {
+      return function () {
+         switch (action.ctor)
+         {case "Click":
+            switch (action._0.ctor)
+              {case "_Tuple2":
+                 return {ctor: "_Tuple2"
+                        ,_0: $Basics.toFloat(action._0._0 - 400)
+                        ,_1: $Basics.toFloat(400 - action._0._1)};}
+              break;}
+         return state;
+      }();
+   });
+   var reducers = $Dict.fromList(_L.fromArray([{ctor: "_Tuple2"
+                                               ,_0: "creature"
+                                               ,_1: creaturePos}]));
+   var initState = $Dict.fromList(_L.fromArray([{ctor: "_Tuple2"
+                                                ,_0: "creature"
+                                                ,_1: {ctor: "_Tuple2"
+                                                     ,_0: 0
+                                                     ,_1: 0}}]));
+   var Click = function (a) {
+      return {ctor: "Click",_0: a};
+   };
+   var clicks = A2($Signal._op["<~"],
+   Click,
+   A2($Signal.sampleOn,
+   $Mouse.clicks,
+   $Mouse.position));
+   var combineReducerDict = F2(function (reducers,
+   action) {
+      return $Dict.map(F2(function (k,
+      thisState) {
+         return function () {
+            var _v4 = A2($Dict.get,
+            k,
+            reducers);
+            switch (_v4.ctor)
+            {case "Just": return A2(_v4._0,
+                 action,
+                 thisState);}
+            return thisState;
+         }();
+      }));
+   });
+   var appState = A3($Signal.foldp,
+   combineReducerDict(reducers),
+   initState,
+   $Signal.mergeMany(_L.fromArray([clicks])));
+   var main = A2($Signal._op["<~"],
+   render,
+   appState);
+   _elm.Main.values = {_op: _op
+                      ,main: main
+                      ,appState: appState
+                      ,combineReducerDict: combineReducerDict
+                      ,Click: Click
+                      ,clicks: clicks
+                      ,initState: initState
+                      ,reducers: reducers
+                      ,creaturePos: creaturePos
+                      ,render: render
+                      ,creatureForm: creatureForm};
+   return _elm.Main.values;
+};
