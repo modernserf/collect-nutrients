@@ -1,45 +1,99 @@
-import Color exposing (..)
-import Graphics.Collage exposing (..)
 import Graphics.Element exposing (..)
-import Signal exposing ((<~), sampleOn, foldp, mergeMany)
-import Mouse
-import Dict exposing (Dict)
-import Maybe exposing (withDefault)
+import Signal exposing ((<~), mailbox, message, sampleOn, foldp, mergeMany)
+import Time exposing (Time)
+import Graphics.Input exposing (button)
 
-main : Signal Element
 main = render <~ appState
+appState = foldp reducer initState (mergeMany [clock, dispatcher.signal])
 
-appState = foldp (combineReducerDict reducers) initState (mergeMany [clicks])
-
-combineReducerDict reducers action =
-    Dict.map (\k thisState ->
-            case (Dict.get k reducers) of
-                Just r -> (r action thisState)
-                _ -> thisState)
-
+dispatcher : Signal.Mailbox Action
+dispatcher = mailbox InitAction
 
 --actions
-type Action = Click (Int,Int)
+type Action
+    = ClickCookie
+    | BuyBuilding Building Int
+    --| BuyUpgrade UpgradeID Time
+    | ClockTick Time
+    | InitAction
 
-clicks = Click <~ sampleOn Mouse.clicks Mouse.position
+--action creators
+clock = ClockTick <~ Time.every Time.second
 
---reducers
-initState = Dict.fromList [("creature",(0,0))]
 
-reducers = Dict.fromList [("creature",creaturePos)]
+--state
+type alias Buildings =
+    { cursor : Int
+    , grandma : Int
+    , farm : Int
+    , factory : Int
+    , mine : Int }
 
-type alias CreatureState = (Float,Float)
-creaturePos : Action -> CreatureState -> CreatureState
-creaturePos action state =
+type alias State =
+    { cookies : Float
+    , totalCookies : Float
+    , time : Time
+    , buildings : Buildings }
+
+type alias Building = Buildings -> Int
+
+initState : State
+initState = {
+    cookies = 0.0,
+    totalCookies = 0.0,
+    time = 0,
+    buildings = {
+        cursor = 0,
+        grandma = 0,
+        farm = 0,
+        factory = 0,
+        mine = 0
+    }}
+
+reducer : Action -> State -> State
+reducer action state =
     case action of
-        Click (x, y) -> (toFloat (x - 400), toFloat (400 - y))
+        ClickCookie ->
+            let cookies = (cookiesPerClick state)
+            in { state
+                | cookies <- state.cookies + cookies
+                , totalCookies <- state.totalCookies + cookies
+            }
+        BuyBuilding getter qty ->
+            let b = state.buildings
+                c = b.cursor
+            in  { state
+                | buildings <- { b | cursor <- c + 1 }
+                , cookies <- state.cookies - 15 }
+        ClockTick t ->
+            let cookies = (cookiesPerTick state)
+            in { state
+                    | time <- t
+                    , cookies <- state.cookies + cookies
+                    , totalCookies <- state.totalCookies + cookies
+                }
         _ -> state
+
+--TODO
+cookiesPerTick : State -> Float
+cookiesPerTick state = (toFloat state.buildings.cursor) * 0.1
+
+cookiesPerClick : State -> Float
+cookiesPerClick state = 1.0
 
 
 --views
 render state =
-    container 800 800 middle (collage 800 800
-        [move ((Dict.get "creature" state) |> withDefault (0,0)) creatureForm])
+    container 640 480 middle (flow down [
+        (show  (floor state.cookies)),
+        (show (floor state.totalCookies)),
+        button (message dispatcher.address ClickCookie) "Click",
+        (flow left [
+            show state.buildings.cursor,
+            button (message dispatcher.address (BuyBuilding .cursor 1)) "Cursor"
+        ])
+    ])
 
-creatureForm : Form
-creatureForm = circle 40 |> filled red
+
+
+
