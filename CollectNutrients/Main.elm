@@ -5,8 +5,12 @@ import Graphics.Input exposing (button)
 import Debug
 import Dict exposing (Dict)
 import Maybe
+import CollectNutrients.Layout exposing (render)
+import CollectNutrients.Actions exposing ( Action(ClickCookie, BuyBuilding, ClockTick,InitAction) )
+import CollectNutrients.Building exposing (Building, cursor)
+import CollectNutrients.State exposing (State, initState)
 
-main = render <~ appState
+main = Signal.map (\s -> render s dispatcher.address) appState
 
 appState : Signal State
 appState = foldp reducer initState (mergeMany [clock, dispatcher.signal])
@@ -14,46 +18,8 @@ appState = foldp reducer initState (mergeMany [clock, dispatcher.signal])
 dispatcher : Signal.Mailbox Action
 dispatcher = mailbox InitAction
 
---actions
-type Action
-    = ClickCookie
-    | BuyBuilding Building
-    --| BuyUpgrade UpgradeID Time
-    | ClockTick Time
-    | InitAction
-
 --action creators
 clock = ClockTick <~ Time.every Time.second
-
-type alias BuildingID = Int
-
-type alias Building  = {
-    id: BuildingID,
-    baseCost: Int,
-    baseCPS: Float
-}
-
-cursor = { id = 1, baseCost = 15, baseCPS = 0.1 }
-grandma = { id = 2, baseCost = 100, baseCPS = 1.0 }
-
-initBuildings : List Building -> Dict BuildingID (Building, Int)
-initBuildings list = list
-    |> List.map (\g -> (g.id , (g, 0)))
-    |> Dict.fromList
-
---state
-type alias State =
-    { cookies : Float
-    , totalCookies : Float
-    , time : Time
-    , buildings : Dict BuildingID (Building, Int) }
-
-initState : State
-initState = {
-    cookies = 0.0,
-    totalCookies = 0.0,
-    time = 0,
-    buildings = (initBuildings [cursor, grandma])  }
 
 reducer : Action -> State -> State
 reducer action state =
@@ -104,20 +70,6 @@ buy state bldg =
                                 bldg.id
                                 (Maybe.map (\(_,x) -> (bldg, x + 1)))
                                 state.buildings }
-
-
-
---views
-render : State -> Element
-render state =
-    container 640 480 middle (flow down [
-        (show  (floor state.cookies)),
-        (show (floor state.totalCookies)),
-        button (message dispatcher.address ClickCookie) "Click",
-        button (message dispatcher.address (BuyBuilding cursor))
-                "Cursor"
-    ])
-
 
 
 
