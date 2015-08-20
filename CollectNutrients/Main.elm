@@ -1,43 +1,32 @@
-import Graphics.Element exposing (..)
-import Signal exposing ((<~), mailbox, message, sampleOn, foldp, mergeMany)
-import Time exposing (Time)
-import Graphics.Input exposing (button)
 import Debug
 import Dict exposing (Dict)
-import Maybe
+import Maybe exposing (Maybe(Just, Nothing), andThen, withDefault)
 import CollectNutrients.Layout exposing (render)
 import CollectNutrients.Actions exposing ( Action(ClickCookie, BuyBuilding, ClockTick,InitAction) )
-import CollectNutrients.Building exposing (Building, cursor)
-import CollectNutrients.State exposing (State, initState)
+import CollectNutrients.Building exposing (Building, priceAtCount)
+import CollectNutrients.State exposing (State, initState, addCookies, spendCookies, incBuilding, setTime)
+import CollectNutrients.Run exposing (runApp)
+import CollectNutrients.Clock exposing (clock)
+import Debug
 
-main = Signal.map (\s -> render s dispatcher.address) appState
-
-appState : Signal State
-appState = foldp reducer initState (mergeMany [clock, dispatcher.signal])
-
-dispatcher : Signal.Mailbox Action
-dispatcher = mailbox InitAction
-
---action creators
-clock = ClockTick <~ Time.every Time.second
+main = runApp render reducer initState InitAction [clock]
 
 reducer : Action -> State -> State
 reducer action state =
     case (Debug.watch "action" action) of
-        ClickCookie ->
-            let cookies = (cookiesPerClick state)
-            in { state
-                | cookies <- state.cookies + cookies
-                , totalCookies <- state.totalCookies + cookies
-            }
-        BuyBuilding bldg -> buy state bldg
-        ClockTick t ->
-            let cookies = (cookiesPerTick state)
-            in { state
-                    | time <- t
-                    , cookies <- state.cookies + cookies
-                    , totalCookies <- state.totalCookies + cookies
-                }
+        ClickCookie -> state |> addCookies (cookiesPerClick state)
+        BuyBuilding bldg ->
+            Dict.get bldg.id state.buildings
+                `andThen` getPrice bldg
+                `andThen` filter' ((>) state.cookies)
+                `andThen` (\price -> state
+                    |> spendCookies price
+                    |> incBuilding bldg
+                    |> Just)
+                |> withDefault state
+        ClockTick t -> state
+            |> setTime t
+            |> addCookies (cookiesPerTick state)
         _ -> state
 
 --TODO
@@ -47,29 +36,10 @@ cookiesPerTick state = Dict.foldl
     0.0
     state.buildings
 
-
-
 cookiesPerClick : State -> Float
 cookiesPerClick state = 1.0
 
-growthConstant = 1.15
+filter' : (a -> Bool) -> a -> Maybe a
+filter' cond value = if (cond value) then Just value else Nothing
 
-buy : State -> Building -> State
-buy state bldg =
-    case (Dict.get bldg.id state.buildings) of
-        Nothing -> state
-        Just (_, count) ->
-            let price = (toFloat bldg.baseCost) *
-                (growthConstant ^ (toFloat count))
-            in
-                if  state.cookies < price then state else
-                    { state
-                        | cookies <- state.cookies - price
-                        , buildings <-
-                            Dict.update
-                                bldg.id
-                                (Maybe.map (\(_,x) -> (bldg, x + 1)))
-                                state.buildings }
-
-
-
+getPrice bldg (_,count) = Just (priceAtCount bldg count)
